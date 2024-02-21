@@ -44,12 +44,14 @@ class Boundary {
   void ReconstructNormalField(int dir);           ///< reconstruct normal field using divB=0
 
   void EnforceFluxBoundaries(int dir);        ///< Apply boundary condition conditions to the fluxes
+  void EnforceRklFluxBoundaries(int dir);        ///< Apply boundary condition conditions to the RKL fluxes
 
   void EnrollUserDefBoundary(UserDefBoundaryFuncOld); ///< Deprecated
   void EnrollUserDefBoundary(UserDefBoundaryFunc<Phys>); ///< User-defined boundary condition
   void EnrollInternalBoundary(InternalBoundaryFuncOld); ///< Deprecated
   void EnrollInternalBoundary(InternalBoundaryFunc<Phys>); ///< User-defined internal boundary
   void EnrollFluxBoundary(UserDefBoundaryFuncOld);
+  void EnrollRklFluxBoundary(UserDefBoundaryFuncOld);
 
   void EnforcePeriodic(int, BoundarySide ); ///< Enforce periodic BC in direction and side
   void EnforceReflective(int, BoundarySide ); ///< Enforce reflective BC in direction and side
@@ -72,7 +74,9 @@ class Boundary {
 
   // Flux boundary function
   bool haveFluxBoundary{false};
+  bool haveRklFluxBoundary{false};
   UserDefBoundaryFuncOld fluxBoundaryFunc{NULL};
+  UserDefBoundaryFuncOld RklFluxBoundaryFunc{NULL};
 
   // specific for loops on ghost cells
   template <typename Function>
@@ -192,6 +196,12 @@ void Boundary<Phys>::EnrollFluxBoundary(UserDefBoundaryFuncOld myFunc) {
 }
 
 template<typename Phys>
+void Boundary<Phys>::EnrollRklFluxBoundary(UserDefBoundaryFuncOld myFunc) {
+  this->haveRklFluxBoundary = true;
+  this->RklFluxBoundaryFunc = myFunc;
+}
+
+template<typename Phys>
 void Boundary<Phys>::EnforceFluxBoundaries(int dir) {
   idfx::pushRegion("Boundary::EnforceFluxBoundaries");
   if(haveFluxBoundary) {
@@ -200,6 +210,22 @@ void Boundary<Phys>::EnforceFluxBoundaries(int dir) {
     }
     if(data->rbound[dir] != internal) {
       fluxBoundaryFunc(*data, dir, right, data->t);
+    }
+  } else {
+    IDEFIX_ERROR("Cannot enforce flux boundary conditions without enrolling a specific function");
+  }
+  idfx::popRegion();
+}
+
+template<typename Phys>
+void Boundary<Phys>::EnforceRklFluxBoundaries(int dir) {
+  idfx::pushRegion("Boundary::EnforceRklFluxBoundaries");
+  if(haveRklFluxBoundary) {
+    if(data->lbound[dir] != internal) {
+      RklFluxBoundaryFunc(*data, dir, left, data->t);
+    }
+    if(data->rbound[dir] != internal) {
+      RklFluxBoundaryFunc(*data, dir, right, data->t);
     }
   } else {
     IDEFIX_ERROR("Cannot enforce flux boundary conditions without enrolling a specific function");

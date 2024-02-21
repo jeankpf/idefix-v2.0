@@ -685,6 +685,9 @@ void RKLegendre<Phys>::LoopDir(real t) {
     // CalcParabolicFlux
     hydro->template CalcParabolicFlux<dir>(t);
 
+    // If user has requested specific RKL flux functions for the boundaries, here they come
+    if(hydro->boundary->haveRklFluxBoundary) hydro->boundary->EnforceRklFluxBoundaries(dir);
+
     // Calc Right Hand Side
     CalcParabolicRHS<dir>(t);
 
