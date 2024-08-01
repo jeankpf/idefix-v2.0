@@ -10,6 +10,7 @@
 #include "fluid.hpp"
 #include "slice.hpp"
 #include "dataBlockHost.hpp"
+#include "balancedScheme.hpp"
 
 #ifdef WITH_PYTHON
 #include "pydefix.hpp"
