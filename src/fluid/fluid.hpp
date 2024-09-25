@@ -147,6 +147,8 @@ class Fluid {
   void EnrollInternalBoundary(T);
   template <typename T>
   void EnrollFluxBoundary(T);
+  template <typename T>
+  void EnrollRklFluxBoundary(T);
 
   void EnrollEmfBoundary(EmfBoundaryFunc);
 

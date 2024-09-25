@@ -43,6 +43,13 @@ void Fluid<Phys>::EnrollFluxBoundary(T myFunc) {
 }
 
 template<typename Phys>
+template<typename T>
+void Fluid<Phys>::EnrollRklFluxBoundary(T myFunc) {
+  // This is a proxy for userdef enrollment
+  boundary->EnrollRklFluxBoundary(myFunc);
+}
+
+template<typename Phys>
 void Fluid<Phys>::EnrollUserSourceTerm(SrcTermFunc<Phys> myFunc) {
   this->userSourceTerm = myFunc;
   this->haveUserSourceTerm = true;

@@ -44,7 +44,7 @@ class Boundary {
   void ReconstructNormalField(int dir);           ///< reconstruct normal field using divB=0
 
   void EnforceFluxBoundaries(int,real);      ///< Apply boundary condition conditions to the fluxes
-  void EnforceRklFluxBoundaries(int dir);        ///< Apply boundary condition conditions to the RKL fluxes
+  void EnforceRklFluxBoundaries(int,real);        ///< Apply boundary condition conditions to the RKL fluxes
 
   void EnrollUserDefBoundary(UserDefBoundaryFuncOld); ///< Deprecated
   void EnrollUserDefBoundary(UserDefBoundaryFunc<Phys>); ///< User-defined boundary condition
@@ -52,7 +52,8 @@ class Boundary {
   void EnrollInternalBoundary(InternalBoundaryFunc<Phys>); ///< User-defined internal boundary
   void EnrollFluxBoundary(UserDefBoundaryFuncOld); ///< Deprecated
   void EnrollFluxBoundary(UserDefBoundaryFunc<Phys>); ///< Flux boundary condition
-  void EnrollRklFluxBoundary(UserDefBoundaryFuncOld);
+  void EnrollRklFluxBoundary(UserDefBoundaryFuncOld); ///< Deprecated
+  void EnrollRklFluxBoundary(UserDefBoundaryFunc<Phys>); ///< RKL flux boundary condition
 
   void EnforcePeriodic(int, BoundarySide ); ///< Enforce periodic BC in direction and side
   void EnforceReflective(int, BoundarySide ); ///< Enforce reflective BC in direction and side
@@ -75,10 +76,13 @@ class Boundary {
 
   // Flux boundary function
   bool haveFluxBoundary{false};
-  bool haveRklFluxBoundary{false};
   UserDefBoundaryFuncOld fluxBoundaryFuncOld{NULL};
   UserDefBoundaryFunc<Phys> fluxBoundaryFunc{NULL};
-  UserDefBoundaryFuncOld RklFluxBoundaryFunc{NULL};
+
+  // RKL flux boundary function
+  bool haveRklFluxBoundary{false};
+  UserDefBoundaryFuncOld rklFluxBoundaryFuncOld{NULL};
+  UserDefBoundaryFunc<Phys> rklFluxBoundaryFunc{NULL};
 
   // specific for loops on ghost cells
   template <typename Function>
@@ -214,8 +218,22 @@ void Boundary<Phys>::EnrollFluxBoundary(UserDefBoundaryFunc<Phys> myFunc) {
 
 template<typename Phys>
 void Boundary<Phys>::EnrollRklFluxBoundary(UserDefBoundaryFuncOld myFunc) {
+  std::stringstream msg;
+  msg << "The old signature for RKL flux boundary condition " << std::endl
+      << "(DataBlock &, int dir, BoundarySide side, const real t)" << std::endl
+      << "is deprecated. You should now use "<< std::endl
+      << "(Fluid<Phys> *, int dir, BoundarySide side, const real t)" << std::endl
+      << "With the Phys of your choice (DefaultPhysics, DustPhysics...)" << std::endl;
+
+  IDEFIX_WARNING(msg);
+  this->rklFluxBoundaryFuncOld = myFunc;
+  this->haveUserDefBoundary = true;
+}
+
+template<typename Phys>
+void Boundary<Phys>::EnrollRklFluxBoundary(UserDefBoundaryFunc<Phys> myFunc) {
   this->haveRklFluxBoundary = true;
-  this->RklFluxBoundaryFunc = myFunc;
+  this->rklFluxBoundaryFunc = myFunc;
 }
 
 template<typename Phys>
@@ -243,17 +261,25 @@ void Boundary<Phys>::EnforceFluxBoundaries(int dir,const real t) {
 }
 
 template<typename Phys>
-void Boundary<Phys>::EnforceRklFluxBoundaries(int dir) {
+void Boundary<Phys>::EnforceRklFluxBoundaries(int dir,const real t) {
   idfx::pushRegion("Boundary::EnforceRklFluxBoundaries");
   if(haveRklFluxBoundary) {
     if(data->lbound[dir] != internal) {
-      RklFluxBoundaryFunc(*data, dir, left, data->t);
+        if(rklFluxBoundaryFunc != NULL) {
+        this->rklFluxBoundaryFunc(fluid, dir, left, t);
+      } else {
+        this->rklFluxBoundaryFuncOld(*data, dir, left, t);
+      }
     }
     if(data->rbound[dir] != internal) {
-      RklFluxBoundaryFunc(*data, dir, right, data->t);
+      if(rklFluxBoundaryFunc != NULL) {
+        this->rklFluxBoundaryFunc(fluid, dir, right, t);
+      } else {
+        this->rklFluxBoundaryFuncOld(*data, dir, right, t);
+      }
     }
   } else {
-    IDEFIX_ERROR("Cannot enforce flux boundary conditions without enrolling a specific function");
+    IDEFIX_ERROR("Cannot enforce RKL flux boundary conditions without enrolling a specific function");
   }
   idfx::popRegion();
 }
