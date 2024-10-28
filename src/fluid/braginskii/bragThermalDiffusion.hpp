@@ -35,7 +35,7 @@ class BragThermalDiffusion {
   void AddBragDiffusiveFluxLim(int, const real, const IdefixArray4D<real> &);
 
   // Enroll user-defined thermal conductivity
-  void EnrollBragThermalDiffusivity(BragDiffusivityFunc);
+  void EnrollBragThermalDiffusivity(FourArrayDiffusivityFunc);
 
   IdefixArray3D<real> heatSrc;  // Source terms of the thermal operator
   IdefixArray3D<real> knorArr;
@@ -52,7 +52,7 @@ class BragThermalDiffusion {
   // status of the module
   ParabolicModuleStatus &status;
 
-  BragDiffusivityFunc diffusivityFunc;
+  FourArrayDiffusivityFunc diffusivityFunc;
 
   bool haveSlopeLimiter{false};
 
@@ -264,7 +264,7 @@ void BragThermalDiffusion::AddBragDiffusiveFluxLim(int dir, const real t,
   if(haveThermalDiffusion == UserDefFunction && dir == IDIR) {
     if(diffusivityFunc) {
       idfx::pushRegion("UserDef::BragThermalDiffusivityFunction");
-      diffusivityFunc(*this->data, t, kparArr, knorArr);
+      diffusivityFunc(*this->data, t, kparArr, knorArr, alpha, clessQ);
       idfx::popRegion();
     } else {
       IDEFIX_ERROR("No user-defined thermal diffusion function has been enrolled");
@@ -649,7 +649,7 @@ void BragThermalDiffusion::AddBragDiffusiveFluxLim(int dir, const real t,
 
       Flux(ENG, k, j, i) -= q;
 
-      dMax(k,j,i) = FMAX(dMax(k,j,i),locdmax*alpha(k,j,i);
+      dMax(k,j,i) = FMAX(dMax(k,j,i),locdmax*alpha(k,j,i));
     });
   idfx::popRegion();
 }

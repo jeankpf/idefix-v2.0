@@ -51,6 +51,9 @@ using EmfBoundaryFunc = void (*) (DataBlock &, const real t);
 using DiffusivityFunc = void (*) (DataBlock &, const real t, IdefixArray3D<real> &);
 using BragDiffusivityFunc = void (*) (DataBlock &, const real t,
                                       IdefixArray3D<real> &, IdefixArray3D<real> &);
+using FourArrayDiffusivityFunc = void (*) (DataBlock &, const real t,
+                                      IdefixArray3D<real> &, IdefixArray3D<real> &,
+                                      IdefixArray3D<real> &, IdefixArray3D<real> &);
 
 // Deprecated signatures
 using SrcTermFuncOld = void (*) (DataBlock &, const real t, const real dt);
