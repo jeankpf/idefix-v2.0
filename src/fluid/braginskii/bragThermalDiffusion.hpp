@@ -40,6 +40,8 @@ class BragThermalDiffusion {
   IdefixArray3D<real> heatSrc;  // Source terms of the thermal operator
   IdefixArray3D<real> knorArr;
   IdefixArray3D<real> kparArr;
+  IdefixArray3D<real> alpha;    // Transition from Brag to collisionless tc
+  IdefixArray3D<real> clessQ; // Collisionless tc flux
 
   // pre-computed geometrical factors in non-cartesian geometry
   IdefixArray1D<real> one_dmu;
@@ -110,6 +112,12 @@ BragThermalDiffusion::BragThermalDiffusion(Input &input, Grid &grid, Fluid<Phys>
       this->knorArr = IdefixArray3D<real>("BragThermalDiffusionKnorArray",data->np_tot[KDIR],
                                                                data->np_tot[JDIR],
                                                                data->np_tot[IDIR]);
+      this->alpha = IdefixArray3D<real>("ClessThermalDiffusionAlphaArray",data->np_tot[KDIR],
+                    data->np_tot[JDIR],
+                    data->np_tot[IDIR]);
+      this->clessQ = IdefixArray3D<real>("ClessThermalDiffusionClessQ",data->np_tot[KDIR],
+                     data->np_tot[JDIR],
+                     data->np_tot[IDIR]);
     } else {
       IDEFIX_ERROR("Unknown braginskii thermal diffusion definition in idefix.ini. "
                    "Can only be constant or userdef.");
@@ -637,10 +645,11 @@ void BragThermalDiffusion::AddBragDiffusiveFluxLim(int dir, const real t,
 
       bn = Bn/Bmag; /* -- unit vector component -- */
       q = kpar*bgradT*bn + knor*(dTn - bn*bgradT);
+      q = alpha(k,j,i)*q + (1-alpha(k,j,i))*clessQ(k,j,i);
 
       Flux(ENG, k, j, i) -= q;
 
-      dMax(k,j,i) = FMAX(dMax(k,j,i),locdmax);
+      dMax(k,j,i) = FMAX(dMax(k,j,i),locdmax*alpha(k,j,i);
     });
   idfx::popRegion();
 }
