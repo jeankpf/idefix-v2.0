@@ -392,9 +392,19 @@ void TimeIntegrator::Cycle(DataBlock &data) {
     } else {
       if(ncycles==0 && newdt < 0.5*data.dt) {
         std::stringstream msg;
-        msg << "Your guessed first_dt is too large. My next dt=" << newdt << std::endl;
-        msg << "Try to reduce first_dt in the ini file.";
-        IDEFIX_ERROR(msg);
+//        msg << "Your guessed first_dt is too large. My next dt=" << newdt << std::endl;
+//        msg << "Try to reduce first_dt in the ini file.";
+//        IDEFIX_ERROR(msg);
+        if (data.t == 0.) {
+          msg << "Your guessed first_dt is too large. My next dt=" << newdt << std::endl;
+          msg << "Try to reduce first_dt in the ini file.";
+          IDEFIX_ERROR(msg);
+        }
+        else if (data.t > 0.) {
+          msg << "Your previous dump dt is too large. My new required dt=" << newdt << std::endl;
+          msg << "Using this one now.";
+          IDEFIX_WARNING(msg);
+        }
       }
       data.dt=newdt;
     }
