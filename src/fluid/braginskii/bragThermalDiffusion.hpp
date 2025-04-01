@@ -89,8 +89,10 @@ BragThermalDiffusion::BragThermalDiffusion(Input &input, Grid &grid, Fluid<Phys>
       this->haveSlopeLimiter = true;
       limiter = PLMLimiter::VanLeer;
     } else if(input.Get<std::string>("Hydro","bragTDiffusion",1).compare("minmod") == 0) {
-      IDEFIX_ERROR("The minmod slope limiter is not available because it has been "
+      IDEFIX_WARNING("The minmod slope limiter is not available because it has been "
                    "found to be too diffusive.");
+      this->haveSlopeLimiter = true;
+      limiter = PLMLimiter::MinMod;
     } else if(input.Get<std::string>("Hydro","bragTDiffusion",1).compare("nolimiter") == 0) {
       this->haveSlopeLimiter = false;
 //      limiter = PLMLimiter::VanLeer;
