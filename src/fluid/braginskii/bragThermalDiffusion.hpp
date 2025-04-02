@@ -182,22 +182,31 @@ BragThermalDiffusion::BragThermalDiffusion(Input &input, Grid &grid, Fluid<Phys>
 //We now define spatial average macros for the magnetic field.
 //    The magnetic field appears in the expression of the Braginskii heat flux.
 //    It is therefore needed at the right cell interface according to the direction of the flux.
-#define BX_I  Vs(BX1s,k,j,i)
-#define BY_J  Vs(BX2s,k,j,i)
-#define BZ_K  Vs(BX3s,k,j,i)
-#define BY_I (0.25*(Vs(BX2s,k,j,i) + Vs(BX2s,k,j + 1,i) \
-             + Vs(BX2s,k,j,i - 1) + Vs(BX2s,k,j + 1,i - 1)))
-#define BZ_I (0.25*(Vs(BX3s,k,j,i) + Vs(BX3s,k + 1,j,i) \
-             + Vs(BX3s,k,j,i - 1) + Vs(BX3s,k + 1,j,i - 1)))
-#define BX_J (0.25*(Vs(BX1s,k,j,i) + Vs(BX1s,k,j,i + 1) \
-             + Vs(BX1s,k,j - 1,i) + Vs(BX1s,k,j - 1,i + 1)))
-#define BZ_J (0.25*(Vs(BX3s,k,j,i) + Vs(BX3s,k + 1,j,i) \
-             + Vs(BX3s,k,j - 1,i) + Vs(BX3s,k + 1,j - 1,i)))
-#define BX_K (0.25*(Vs(BX1s,k,j,i) + Vs(BX1s,k,j,i + 1) \
-             + Vs(BX1s,k - 1,j,i) + Vs(BX1s,k - 1,j,i + 1)))
-#define BY_K (0.25*(Vs(BX2s,k,j,i) + Vs(BX2s,k,j + 1,i) \
-             + Vs(BX2s,k - 1,j,i) + Vs(BX2s,k - 1,j + 1,i)))
+//#define BX_I  Vs(BX1s,k,j,i)
+//#define BY_J  Vs(BX2s,k,j,i)
+//#define BZ_K  Vs(BX3s,k,j,i)
+//#define BY_I (0.25*(Vs(BX2s,k,j,i) + Vs(BX2s,k,j + 1,i) \
+//             + Vs(BX2s,k,j,i - 1) + Vs(BX2s,k,j + 1,i - 1)))
+//#define BZ_I (0.25*(Vs(BX3s,k,j,i) + Vs(BX3s,k + 1,j,i) \
+//             + Vs(BX3s,k,j,i - 1) + Vs(BX3s,k + 1,j,i - 1)))
+//#define BX_J (0.25*(Vs(BX1s,k,j,i) + Vs(BX1s,k,j,i + 1) \
+//             + Vs(BX1s,k,j - 1,i) + Vs(BX1s,k,j - 1,i + 1)))
+//#define BZ_J (0.25*(Vs(BX3s,k,j,i) + Vs(BX3s,k + 1,j,i) \
+//             + Vs(BX3s,k,j - 1,i) + Vs(BX3s,k + 1,j - 1,i)))
+//#define BX_K (0.25*(Vs(BX1s,k,j,i) + Vs(BX1s,k,j,i + 1) \
+//             + Vs(BX1s,k - 1,j,i) + Vs(BX1s,k - 1,j,i + 1)))
+//#define BY_K (0.25*(Vs(BX2s,k,j,i) + Vs(BX2s,k,j + 1,i) \
+//             + Vs(BX2s,k - 1,j,i) + Vs(BX2s,k - 1,j + 1,i)))
 
+#define BX_I  0.5*(Vc(BX1,k,j,i) + Vc(BX1,k,j,i-1))
+#define BY_J  0.5*(Vc(BX2,k,j,i) + Vc(BX2,k,j-1,i))
+#define BZ_K  0.5*(Vc(BX3,k,j,i) + Vc(BX3,k-1,j,i))
+#define BY_I  0.5*(Vc(BX2,k,j,i) + Vc(BX2,k,j,i-1))
+#define BZ_I  0.5*(Vc(BX3,k,j,i) + Vc(BX3,k,j,i-1))
+#define BX_J  0.5*(Vc(BX1,k,j,i) + Vc(BX1,k,j-1,i))
+#define BZ_J  0.5*(Vc(BX3,k,j,i) + Vc(BX3,k,j-1,i))
+#define BX_K  0.5*(Vc(BX1,k,j,i) + Vc(BX1,k-1,j,i))
+#define BY_K  0.5*(Vc(BX2,k,j,i) + Vc(BX2,k-1,j,i))
 
 // (this avoids an extra array)
 template <PLMLimiter limTemplate>
