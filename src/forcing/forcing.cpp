@@ -261,8 +261,8 @@ Forcing::Forcing(Input &input, DataBlock *datain) {
   this->hostMeans = IdefixHostArray2D<real>("hostMeans", nForcingModes, COMPONENTS);
   this->hostTcorrs = IdefixHostArray2D<real>("hostTcorrs", nForcingModes, COMPONENTS);
   this->hostEpsilons = IdefixHostArray2D<real>("hostEpsilons", nForcingModes, COMPONENTS);
-  this->machNumber = input.GetOrSet<real>("Forcing", "mach", 0, -1.);
-  if (this->machNumber >= 0) { // in this case they will be reset later
+  this->targetVel = input.GetOrSet<real>("Forcing", "targetVel", 0, -1.);
+  if (this->targetVel >= 0) { // in this case they will be reset later
     tcorr = 1.;
     epsilon = -1.;
   } else{
@@ -274,6 +274,19 @@ Forcing::Forcing(Input &input, DataBlock *datain) {
   #endif
 
   this->oUprocesses.InitProcesses(this->folder, this->seed, this->nForcingModes, this->modeNames);
+  this->InitForcingModes();
+  this->InitForcingParameters();
+
+  if (!input.restartRequested) {
+    this->oUprocesses.ResetProcessesValues(); // so that we get the excited modes even if we don't write
+    this->oUprocesses.ResetTimestep();
+    if(this->write) {
+      this->oUprocesses.ResetNormalValues();
+    }
+  }
+  if (input.restartRequested) this->oUprocesses.AdvanceProcessesValues();
+//  if (input.restartRequested) this->oUprocesses.AdvanceProcessesValues(data.tabDt);
+
   idfx::popRegion();
 }
 
@@ -297,8 +310,8 @@ void Forcing::ShowConfig() {
       break;
   }
 
-  if (machNumber >= ZERO_F) {
-    idfx::cout << "Forcing: Mach number=" << machNumber << " ." << std::endl;
+  if (targetVel >= ZERO_F) {
+    idfx::cout << "Forcing: Targeted velocity=" << targetVel << " ." << std::endl;
   } else {
     idfx::cout << "Forcing: epsilon=" << epsilon << " and tcorr=" << tcorr << " ." << std::endl;
   }
@@ -309,13 +322,10 @@ void Forcing::ShowConfig() {
 void Forcing::InitForcingParameters() {
   idfx::pushRegion("Forcing::InitForcingParameters");
 
-  if (this->machNumber >= 0) {
+  if (this->targetVel >= 0) {
     real kf = HALF_F*(kmin+kmax);
-    #if HAVE_ENERGY
-      ComputeAverageSoundSpeed();
-    #endif //ISOTHERMAL
-    this->epsilon = pow(this->machNumber*cs,3.)*kf/(2.*M_PI);
-    this->tcorr = 2.*M_PI/(this->machNumber*cs*kf);
+    this->epsilon = pow(this->targetVel,3.)*kf/(2.*M_PI);
+    this->tcorr = 2.*M_PI/(this->targetVel*cs*kf);
   }
   for (int l=0; l<nForcingModes; l++) {
     for (int dir=IDIR; dir<COMPONENTS; dir++) {

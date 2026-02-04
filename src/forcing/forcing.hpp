@@ -64,7 +64,7 @@ class Forcing {
   std::string folder;
 
   int nForcingModes;
-  real machNumber;
+  real targetVel;
   real cs;
   real tcorr;
   real epsilon;
