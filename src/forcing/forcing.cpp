@@ -6,6 +6,7 @@
 // ***********************************************************************************
 
 #include <string>
+#include <filesystem>
 
 #include "forcing.hpp"
 #include "dataBlock.hpp"
@@ -75,9 +76,25 @@ Forcing::Forcing(Input &input, DataBlock *datain) {
   this->data = datain;
   this->seed = input.GetOrSet<int>("Forcing","seed",0,0);
 
-  this->write = input.GetOrSet<int>("Forcing","write",0, 0);
-//  std::string folder = input.GetOrSet<std::string>("Forcing","filename",0,"testOU");
-  this->folder = input.GetOrSet<std::string>("Output","folder",0,"output");
+  this->write = input.CheckEntry("Forcing","write");
+  this->folder = input.GetOrSet<std::string>("Forcing","write",0,"forcing");
+  if(idfx::prank==0) {
+    if(!std::filesystem::is_directory(folder)) {
+      try {
+        if(!std::filesystem::create_directory(folder)) {
+          std::stringstream msg;
+          msg << "Cannot create directory " << folder << std::endl;
+          IDEFIX_ERROR(msg);
+        }      
+      } catch(std::exception &e) {
+        std::stringstream msg;
+        msg << "Cannot create directory " << folder << std::endl;
+        msg << e.what();
+        IDEFIX_ERROR(msg);
+      }      
+    }      
+  }
+
 
   this->stillHaveForcing = true;
   this->stopTime = input.GetOrSet<real>("Forcing","stoptime",0,std::numeric_limits<real>::infinity());
@@ -392,21 +409,19 @@ Forcing::Forcing(Input &input, DataBlock *datain) {
     epsilon = input.Get<real>("Forcing", "epsilon", 0);
   }
 
-  this->oUprocesses.InitProcesses(this->folder, this->seed, this->nForcingModes, this->modeNames);
+  idfx::popRegion();
+}
+
+void Forcing::FinishInitialisation(real time, int nRestartDmp) {
+  this->oUprocesses.InitProcesses(this->folder, this->seed, this->nForcingModes, this->modeNames, nRestartDmp);
   this->InitForcingModes();
   this->InitForcingParameters();
+  this->oUprocesses.ResetNormalValues();
+  this->oUprocesses.ResetProcessesValues(); // so that we get the excited modes even if we don't write
+  this->oUprocesses.ResetTimestep();
 
-  if (!input.restartRequested) {
-    this->oUprocesses.ResetProcessesValues(); // so that we get the excited modes even if we don't write
-    this->oUprocesses.ResetTimestep();
-    if(this->write) {
-      this->oUprocesses.ResetNormalValues();
-    }
-  }
-  if (input.restartRequested) this->oUprocesses.AdvanceProcessesValues();
-//  if (input.restartRequested) this->oUprocesses.AdvanceProcessesValues(data.tabDt);
-
-  idfx::popRegion();
+  if (time > 0.) this->oUprocesses.AdvanceProcessesValues(time);
+//  if (time) this->oUprocesses.AdvanceProcessesValues(data.tabDt);
 }
 
 void Forcing::ShowConfig() {

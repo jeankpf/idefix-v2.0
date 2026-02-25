@@ -18,7 +18,7 @@ OrnsteinUhlenbeckProcesses::OrnsteinUhlenbeckProcesses()
 { // Default (empty) constructor
 }
 
-void OrnsteinUhlenbeckProcesses::InitProcesses(std::string folder, int seed, int nSeries, std::vector<std::vector<std::string>> modeNames) {
+void OrnsteinUhlenbeckProcesses::InitProcesses(std::string folder, int seed, int nSeries, std::vector<std::vector<std::string>> modeNames, int nRestartDmp) {
   this->names = modeNames;
   this->nSeries = nSeries;
   this->ouValues = IdefixArray2D<Kokkos::complex<real>> ("ouValues", nSeries, COMPONENTS);
@@ -26,9 +26,18 @@ void OrnsteinUhlenbeckProcesses::InitProcesses(std::string folder, int seed, int
   this->normalValuesImag = IdefixArray2D<real> ("normalValuesImag", nSeries, COMPONENTS);
   this->random_pool = Kokkos::Random_XorShift64_Pool<> (/*seed=*/seed);
 
-  this->ouFilename = folder + "/ou_prank" + std::to_string(idfx::prank) + "_seed" + std::to_string(seed) + ".dat";
-  this->normalFilename = folder + "/normal_prank" + std::to_string(idfx::prank) + "_seed" + std::to_string(seed) + ".dat";
-  this->timestepFilename = folder + "/timestep.dat";
+  if (nRestartDmp > 0) {
+    this->restarted = true;
+    this->ouFilename = folder + "/ou_prank" + std::to_string(idfx::prank) + "_seed" + std::to_string(seed) + "_restart" + std::to_string(nRestartDmp) + ".dat";
+    this->normalFilename = folder + "/normal_prank" + std::to_string(idfx::prank) + "_seed" + std::to_string(seed) + "_restart" + std::to_string(nRestartDmp) + ".dat";
+    this->timestepFilenameRestart = folder + "/timestep.dat";
+    this->timestepFilename = folder + "/timestep_restart" + std::to_string(nRestartDmp) + ".dat";
+  } else {
+    this->restarted = false;
+    this->ouFilename = folder + "/ou_prank" + std::to_string(idfx::prank) + "_seed" + std::to_string(seed) + ".dat";
+    this->normalFilename = folder + "/normal_prank" + std::to_string(idfx::prank) + "_seed" + std::to_string(seed) + ".dat";
+    this->timestepFilename = folder + "/timestep.dat";
+  }
   this->precision = 10;
   this->ouValuesHost = IdefixHostArray2D<Kokkos::complex<real>> ("ouValuesHost", nSeries, COMPONENTS);
   this->normalValuesRealHost = IdefixHostArray2D<real> ("normalValuesRealHost", nSeries, COMPONENTS);
@@ -93,19 +102,36 @@ void OrnsteinUhlenbeckProcesses::UpdateProcessesValues(real dt) {
 //  }
 //}
 
-void OrnsteinUhlenbeckProcesses::AdvanceProcessesValues() {
+void OrnsteinUhlenbeckProcesses::AdvanceProcessesValues(real time) {
 
-  std::ifstream file(timestepFilename);
+  std::ifstream filereadonly(timestepFilenameRestart);
   std::string line;
 
-  if (file.is_open()) {
-    while (getline(file, line)) {
+  if (filereadonly.is_open()) {
+    while (getline(filereadonly, line)) {
       std::string::size_type sz;
       real dt = std::stof(line, &sz);
       real t = std::stof(line.substr(sz));
       UpdateProcessesValues(dt);
+      WriteTimestep(t, dt);
+      WriteProcessesValues(t);
+      WriteNormalValues(t);
+      if (t >= time) break;
     }
-    file.close();
+    filereadonly.close();
+
+    if(idfx::prank==0) {
+      std::ofstream file(timestepFilename, std::ios::app);
+      int col_width = precision + 10;
+      file << "AdvanceProcessesValues stopped here" << std::endl;
+      file.close();
+      std::ofstream file1(ouFilename, std::ios::app);
+      file1 << "AdvanceProcessesValues stopped here" << std::endl;
+      file1.close();
+      std::ofstream file2(normalFilename, std::ios::app);
+      file2 << "AdvanceProcessesValues stopped here" << std::endl;
+      file2.close();
+    }
   }
   else {
       IDEFIX_WARNING("UNABLE TO READ THE TIMESTEP FILE TO ADVANCE OU PROCESSES");
@@ -114,8 +140,8 @@ void OrnsteinUhlenbeckProcesses::AdvanceProcessesValues() {
 
 void OrnsteinUhlenbeckProcesses::ResetProcessesValues() {
   if(idfx::prank==0) {
-    file.open(ouFilename, std::ios::trunc);
     int col_width = 3*precision + 10;
+    file.open(ouFilename, std::ios::trunc);
     file << "t";
     for (int l=0; l<nSeries; l++) {
       for (int dir=0; dir<COMPONENTS; dir++) {

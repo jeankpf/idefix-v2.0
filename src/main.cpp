@@ -155,6 +155,11 @@ int main( int argc, char* argv[] ) {
       } else {
         data.SetBoundaries();
       }
+      if (data.haveForcing) {
+        DataBlockHost d(data);
+        d.SyncToDevice();
+        data.forcing->FinishInitialisation(d.t, input.restartFileNumber);
+      }
     }
     if(!input.restartRequested) {
       idfx::cout << "Main: Creating initial conditions." << std::endl;
@@ -173,6 +178,7 @@ int main( int argc, char* argv[] ) {
       idfx::popRegion();
       data.DeriveVectorPotential();   // This does something only when evolveVectorPotential is on
       data.SetBoundaries();
+      if (data.haveForcing) data.forcing->FinishInitialisation(-1., 0);
       data.Validate();
       output.CheckForWrites(data);
     }

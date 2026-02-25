@@ -25,6 +25,8 @@ class Forcing {
   bool stillHaveForcing;
   real stopTime;
 
+  void FinishInitialisation(real, int);          ///< depends on whether restarting or not, after dump was loaded
+
   void InitForcingParameters();          ///< init forcing parameters
 
   void InitForcingModes();          ///< init forcing modes given its type

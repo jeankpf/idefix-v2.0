@@ -45,15 +45,16 @@ public:
     IdefixHostArray2D<real> normalValuesImagHost;
 
     OrnsteinUhlenbeckProcesses(); // Default (empty) constructor
-    void InitProcesses(std::string, int, int, std::vector<std::vector<std::string>>);
+    void InitProcesses(std::string, int, int, std::vector<std::vector<std::string>>, int);
     void SetProcesses(IdefixArray2D<real>, IdefixArray2D<real>, IdefixArray2D<real>);
     void UpdateProcessesValues(real);
 //    void AdvanceProcessesValues(std::vector<real>);
-    void AdvanceProcessesValues();
+    void AdvanceProcessesValues(real);
 
     std::string ouFilename;
     std::string normalFilename;
     std::string timestepFilename;
+    std::string timestepFilenameRestart;
     void ResetProcessesValues();
     void WriteProcessesValues(real);
     void ResetNormalValues();
@@ -61,6 +62,7 @@ public:
     void ResetTimestep();
     void WriteTimestep(real, real);
     int precision;
+    int restarted;
 
     std::ofstream file;
 };
