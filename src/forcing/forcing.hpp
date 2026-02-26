@@ -12,7 +12,9 @@
 #include "input.hpp"
 #include "OrnsteinUhlenbeckProcess.hpp"
 
-enum ForcingType {iso3D, iso2D};
+enum ForcingType {iso3D, iso2D, ani3D};
+enum NormalBoundType {bothHomDir, bothHomNeu};
+enum NormalBasis {chebyshev, legendre, fourier};
 
 class DataBlock;
 
@@ -45,7 +47,7 @@ class Forcing {
   IdefixArray4D<Kokkos::complex<real>> forcingModesIdir; ,
   IdefixArray4D<Kokkos::complex<real>> forcingModesJdir; ,
   IdefixArray4D<Kokkos::complex<real>> forcingModesKdir; )
-//  IdefixHostArray2D<std::string> modeNamesHost;
+  IdefixArray3D<real> forcingModesNormalAni3D;
   std::vector<std::vector<std::string>> modeNames;
   // Forcing terms
   IdefixArray4D<real> forcingTerm;
@@ -65,7 +67,6 @@ class Forcing {
 
   int nForcingModes;
   real targetVel;
-  real cs;
   real tcorr;
   real epsilon;
   IdefixArray2D<real> tcorrs;
@@ -78,16 +79,21 @@ class Forcing {
   ForcingType forcingType;
   int normal2Diso;
   std::string normal2DisoStr;
+  int normalAni3D;
+  std::string normalAni3DStr;
+  IdefixHostArray1D<NormalBoundType> normalAni3DBoundHost;
+  IdefixArray1D<NormalBoundType> normalAni3DBound;
+  std::string normalAni3DBoundStr;
+  NormalBasis normalAni3DBasis;
+  std::string normalAni3DBasisStr;
   int haveSolenoidalForcing;
 
   IdefixArray2D<real> k3Diso;
   IdefixHostArray2D<real> k3DisoHost;
   IdefixArray2D<real> k2Diso;
   IdefixHostArray2D<real> k2DisoHost;
-  IdefixArray2D<real> k3Dani;
-  IdefixHostArray2D<real> k3DaniHost;
-  IdefixArray2D<int> ellmVsh;
-  IdefixHostArray2D<int> ellmVshHost;
+  IdefixArray2D<real> kAni3D;
+  IdefixHostArray2D<real> kAni3DHost;
   real kmin;
   real kmax;
   real kx0;
@@ -99,11 +105,6 @@ class Forcing {
   real xend;
   real yend;
   real zend;
-  int ellmin;
-  int ellmax;
-  int mmin;
-  int mmax;
-//  #endif //GEOMETRY == SPHERICAL
 };
 
 #endif // FORCING_FORCING_HPP_

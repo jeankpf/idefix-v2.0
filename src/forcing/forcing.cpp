@@ -31,6 +31,7 @@ KOKKOS_INLINE_FUNCTION real K_cheby_fst(int n, real x) {
 KOKKOS_INLINE_FUNCTION real K_cheby_fst_both_hom_dir(int n, real x) {
   if (x >= -1. and x <= 1.) {
     return cos(n*acos(x)) - 1.*((n+1)%2) - x*(n%2);
+    return cos((n+1)*acos(x)) - 1.*(n%2) - x*((n+1)%2);
   } else {
     return ZERO_F;
   }
@@ -85,10 +86,6 @@ Forcing::Forcing(Input &input, DataBlock *datain) {
 
   this->kmin = -1.;
   this->kmax = -1.;
-  this->ellmin = -1;
-  this->ellmax = -1;
-  this->mmin = -1;
-  this->mmax = -1;
   this->haveSolenoidalForcing = false;
 
   this->xbeg = data->mygrid->xbeg[IDIR];
@@ -235,6 +232,131 @@ Forcing::Forcing(Input &input, DataBlock *datain) {
                               data->np_tot[KDIR], data->np_tot[JDIR], data->np_tot[IDIR]);          )
   }
 
+  else if (input.CheckEntry("Forcing", "ani3D")>=0) {
+    #if COMPONENTS < 3 or DIMENSIONS < 3
+      IDEFIX_ERROR("You cannot have 3D anisotropic forcing with less than 3 components and dimensions.");
+    #endif //COMPONENTS < 3 or DIMENSIONS < 3
+    this->forcingType = ani3D;
+    this->normalAni3DStr = input.Get<std::string>("Forcing","ani3D", 0);
+    if (this->normalAni3DStr == "IDIR") this->normalAni3D = IDIR;
+    else if (this->normalAni3DStr == "JDIR") this->normalAni3D = JDIR;
+    else if (this->normalAni3DStr == "KDIR") this->normalAni3D = KDIR;
+    else IDEFIX_ERROR("The normal component for 3D anisotropic forcing cannot not be something else than IDIR, JDIR, or KDIR");
+
+    this->normalAni3DBasisStr = input.Get<std::string>("Forcing","ani3D", 1);
+    if (this->normalAni3DBasisStr == "chebyshev") this->normalAni3DBasis = chebyshev;
+//    else if (this->normalAni3DBasisStr == "legendre") this->normalAni3DBasis = legendre;
+    else if (this->normalAni3DBasisStr == "fourier") this->normalAni3DBasis = fourier;
+    else IDEFIX_ERROR("The basis for the normal component of the forcing can only be chebyshev or fourier for now (legendre coming soon).");
+
+    std::vector<NormalBoundType> vecNormalAni3DBound;
+    std::string dirbegStr = "X" + std::to_string(this->normalAni3D + 1) + "-beg";
+    std::string direndStr = "X" + std::to_string(this->normalAni3D + 1) + "-end";
+    if (input.Get<std::string>("Boundary",dirbegStr, 0) != input.Get<std::string>("Boundary",direndStr, 0)) {
+      IDEFIX_ERROR("Anisotropic basis with different BCs at the two sides are not yet implemented");
+    } else if (input.Get<std::string>("Boundary",dirbegStr, 0) == "reflective") {
+      (this->normalAni3D == IDIR) ? vecNormalAni3DBound.push_back(bothHomDir) : vecNormalAni3DBound.push_back(bothHomNeu);
+      (this->normalAni3D == JDIR) ? vecNormalAni3DBound.push_back(bothHomDir) : vecNormalAni3DBound.push_back(bothHomNeu);
+      (this->normalAni3D == KDIR) ? vecNormalAni3DBound.push_back(bothHomDir) : vecNormalAni3DBound.push_back(bothHomNeu);
+    } else if (input.Get<std::string>("Boundary",dirbegStr, 0) == "outflow") {
+      vecNormalAni3DBound.push_back(bothHomNeu);
+      vecNormalAni3DBound.push_back(bothHomNeu);
+      vecNormalAni3DBound.push_back(bothHomNeu);
+    } else if (input.Get<std::string>("Boundary",dirbegStr, 0) == "userdef") {
+      for (int comp=IDIR; comp<COMPONENTS; comp++) {
+        std::string userdefDirbegStr = "begBoundTypeVX" + std::to_string(comp + 1);
+        std::string userdefDirendStr = "endBoundTypeVX" + std::to_string(comp + 1);
+        if (input.Get<std::string>("Boundary",userdefDirbegStr, 0) != input.Get<std::string>("Boundary",userdefDirendStr, 0)) {
+          IDEFIX_ERROR("Anisotropic basis with different BCs at the two sides are not yet implemented");
+        } else if (input.Get<std::string>("Boundary",userdefDirbegStr, 0) == "dirichletZero") {
+          vecNormalAni3DBound.push_back(bothHomDir);
+        } else if (input.Get<std::string>("Boundary",userdefDirbegStr, 0) == "neumann") {
+          vecNormalAni3DBound.push_back(bothHomNeu);
+        } else {
+          IDEFIX_ERROR("userdef BCs not recognised, they are needed to choose a suitable forcing basis.");
+        }
+      }
+    } else if (input.Get<std::string>("Boundary",dirbegStr, 0) == "periodic") {
+      IDEFIX_ERROR("periodic BCs recognised, you should use 3D isotropic forcing in this direction.");
+    } else {
+      IDEFIX_ERROR("BCs not recognised, they are needed to choose the suitable forcing basis.");
+    }
+    normalAni3DBoundHost = IdefixHostArray1D<NormalBoundType>("normalAni3DBoundHost", COMPONENTS);
+    normalAni3DBound = IdefixArray1D<NormalBoundType>("normalAni3DBound", COMPONENTS);
+    for (int comp=IDIR; comp<COMPONENTS; comp++) {
+      normalAni3DBoundHost(comp) = vecNormalAni3DBound[comp];
+      normalAni3DBoundHost(comp) = vecNormalAni3DBound[comp];
+      normalAni3DBoundHost(comp) = vecNormalAni3DBound[comp];
+    }
+    Kokkos::deep_copy(normalAni3DBound, normalAni3DBoundHost);
+
+    this->kmin = input.Get<real>("Forcing","ani3D", 2);
+    this->kmax = input.Get<real>("Forcing","ani3D", 3);
+
+    if (input.GetOrSet<std::string>("Forcing","ani3D", 4, "ras") == "write") WriteNormalBasis(folder);
+
+    std::vector<std::vector<real>> kAni3Dvec;
+
+    int nxmax = kmax/kx0 + 1;
+    int nymax = kmax/ky0 + 1;
+    int nzmax = kmax/kz0 + 1;
+    int xsign, ysign, zsign;
+    if (this->normalAni3D==IDIR) {
+      xsign = 1;
+      ysign = 1;
+      zsign = -1;
+    } else if (this->normalAni3D==JDIR) {
+      xsign = 1;
+      ysign = 1;
+      zsign = -1;
+    } else if (this->normalAni3D==KDIR) {
+      xsign = 1;
+      ysign = -1;
+      zsign = 1;
+    } else {
+      IDEFIX_ERROR("Forcing: normal direction not known");
+    }
+    for (int nx=1; nx<nxmax; nx++) {
+      for (int ny=1; ny<nymax; ny++) {
+        for (int nz=1; nz<nzmax; nz++) {
+          real kx = kx0*nx;
+          real ky = ky0*ny;
+          real kz = kz0*nz;
+          real factor = 1.;
+          #if GEOMETRY == SPHERICAL
+            factor *= 4./pow(xbeg+xend, 2.);
+          #endif //GEOMETRY == SPHERICAL
+          //undimensionalise kx so that kmin and kmax corresponds to angular ktheta and kphi
+          real k_2 = kx*kx/factor + (ky*ky + kz*kz);
+//          real k_2 = kx*kx + factor*(ky*ky + kz*kz);
+          if (k_2 >= kmin*kmin and k_2 <= kmax*kmax) {
+            nForcingModes ++;
+            kAni3Dvec.push_back({kx, ky, kz});
+            modeNames.push_back({"I" + std::to_string(nx) + std::to_string(ny) + std::to_string(nz), "J" + std::to_string(nx) + std::to_string(ny) + std::to_string(nz), "K" + std::to_string(nx) + std::to_string(ny) + std::to_string(nz)});
+            nForcingModes ++;
+            kAni3Dvec.push_back({xsign*kx, ysign*ky, zsign*kz});
+            modeNames.push_back({"I" + std::to_string(xsign*nx) + std::to_string(ysign*ny) + std::to_string(zsign*nz), "J" + std::to_string(xsign*nx) + std::to_string(ysign*ny) + std::to_string(zsign*nz), "K" + std::to_string(xsign*nx) + std::to_string(ysign*ny) + std::to_string(zsign*nz)});
+          }
+        }
+      }
+    }
+    kAni3DHost = IdefixHostArray2D<real>("kAni3DHost", nForcingModes, 3);
+    kAni3D = IdefixArray2D<real>("kAni3D", nForcingModes, 3);
+    for (int l=0; l<nForcingModes; l++) {
+      kAni3DHost(l,0) = kAni3Dvec[l][0];
+      kAni3DHost(l,1) = kAni3Dvec[l][1];
+      kAni3DHost(l,2) = kAni3Dvec[l][2];
+    }
+    Kokkos::deep_copy(kAni3D, kAni3DHost);
+    EXPAND(
+    this->forcingModesIdir = IdefixArray4D<Kokkos::complex<real>>("forcingModesIdir", nForcingModes,
+                              data->np_tot[KDIR], data->np_tot[JDIR], data->np_tot[IDIR]);          ,
+    this->forcingModesJdir = IdefixArray4D<Kokkos::complex<real>>("forcingModesJdir", nForcingModes,
+                              data->np_tot[KDIR], data->np_tot[JDIR], data->np_tot[IDIR]);          ,
+    this->forcingModesKdir = IdefixArray4D<Kokkos::complex<real>>("forcingModesKdir", nForcingModes,
+                              data->np_tot[KDIR], data->np_tot[JDIR], data->np_tot[IDIR]);          )
+    this->forcingModesNormalAni3D = IdefixArray3D<real>("forcingModesNormalAni3D", COMPONENTS, nForcingModes, data->np_tot[normalAni3D]);
+  }
 
   if (input.CheckEntry("Forcing", "solenoidal")>=0) {
     #if GEOMETRY == POLAR or GEOMETRY == CYLINDRICAL
@@ -269,9 +391,6 @@ Forcing::Forcing(Input &input, DataBlock *datain) {
     tcorr = input.Get<real>("Forcing", "t_corr", 0);
     epsilon = input.Get<real>("Forcing", "epsilon", 0);
   }
-  #ifdef ISOTHERMAL
-    this->cs = input.Get<real>("Hydro", "csiso", 1); //WARNING DOESN'T WORK FOR USERDEF csiso
-  #endif
 
   this->oUprocesses.InitProcesses(this->folder, this->seed, this->nForcingModes, this->modeNames);
   this->InitForcingModes();
@@ -308,6 +427,12 @@ void Forcing::ShowConfig() {
       idfx::cout << "Forcing: There are " << nForcingModes << " different forcing modes." << std::endl;
       if (haveSolenoidalForcing) idfx::cout << "Forcing: solenoidal." << std::endl;
       break;
+    case ForcingType::ani3D:
+      idfx::cout << "Forcing: 3D anisotropic with normal " << normalAni3DStr << " and " << normalAni3DBasisStr << " basis." << std::endl;
+      idfx::cout << "Forcing: kmin=" << kmin << " and kmax=" << kmax << " ." << std::endl;
+      idfx::cout << "Forcing: There are " << nForcingModes << " different forcing modes." << std::endl;
+      if (haveSolenoidalForcing) idfx::cout << "Forcing: solenoidal." << std::endl;
+      break;
   }
 
   if (targetVel >= ZERO_F) {
@@ -325,7 +450,7 @@ void Forcing::InitForcingParameters() {
   if (this->targetVel >= 0) {
     real kf = HALF_F*(kmin+kmax);
     this->epsilon = pow(this->targetVel,3.)*kf/(2.*M_PI);
-    this->tcorr = 2.*M_PI/(this->targetVel*cs*kf);
+    this->tcorr = 2.*M_PI/(this->targetVel*kf);
   }
   for (int l=0; l<nForcingModes; l++) {
     for (int dir=IDIR; dir<COMPONENTS; dir++) {
@@ -400,14 +525,71 @@ void Forcing::InitForcingModes() {
                     forcingModesKdir(l,k,j,i) = exp(unit_j * kdotx); )
       });
       break;
+    case ForcingType::ani3D:
+      idefix_for("normalAni3D", 0, nForcingModes, 0, data->np_tot[normalAni3D],
+                  KOKKOS_LAMBDA (int l, int idx) {
+                    real k = kAni3D(l, normalAni3D);
+                    int oppx = (normalAni3D==IDIR) ? 1 : 0;
+                    int oppy = (normalAni3D==JDIR) ? 1 : 0;
+                    int oppz = (normalAni3D==KDIR) ? 1 : 0;
+                    int order = 0;
+                    order = (normalAni3D==IDIR) ? k/kx0 : order;
+                    order = (normalAni3D==JDIR) ? k/ky0 : k/kz0;
+                    real rightx = oppx*x1(idx) + oppy*x2(idx) + oppz*x3(idx);
+                    real rightx0 = oppx*xbeg + oppy*ybeg + oppz*zbeg;
+                    real rightx1 = oppx*xend + oppy*yend + oppz*zend;
+                    switch(normalAni3DBasis) {
+                      case NormalBasis::chebyshev:
+                        for (int comp=IDIR; comp<COMPONENTS; comp++) {
+                          int bound = normalAni3DBound(comp);
+                          switch(bound) {
+                            case NormalBoundType::bothHomDir:
+                              forcingModesNormalAni3D(comp,l,idx) = K_cheby_fst_both_hom_dir(order, K_aff_11(rightx, rightx0, rightx1));
+                            break;
+                            case NormalBoundType::bothHomNeu:
+                              forcingModesNormalAni3D(comp,l,idx) = K_cheby_fst_both_hom_neu(order, K_aff_11(rightx, rightx0, rightx1));
+                            break;
+                          }
+                        }
+                      break;
+                      case NormalBasis::fourier:
+                        for (int comp=IDIR; comp<COMPONENTS; comp++) {
+                          int bound = normalAni3DBound(comp);
+                          switch(bound) {
+                            case NormalBoundType::bothHomDir:
+                              forcingModesNormalAni3D(comp,l,idx) = K_sin(order, K_aff_02pi(rightx, rightx0, rightx1));
+                            break;
+                            case NormalBoundType::bothHomNeu:
+                              forcingModesNormalAni3D(comp,l,idx) = K_cos(order, K_aff_02pi(rightx, rightx0, rightx1));
+                            break;
+                          }
+                        }
+                    }
+      });
+      idefix_for("ani3D", 0, nForcingModes, 0, data->np_tot[KDIR], 0, data->np_tot[JDIR], 0, data->np_tot[IDIR],
+                  KOKKOS_LAMBDA (int l, int k, int j, int i) {
+                    real kx = kAni3D(l, IDIR);
+                    real ky = kAni3D(l, JDIR);
+                    real kz = kAni3D(l, KDIR);
+                    int offx = (normalAni3D==IDIR) ? 0 : 1;
+                    int offy = (normalAni3D==JDIR) ? 0 : 1;
+                    int offz = (normalAni3D==KDIR) ? 0 : 1;
+                    real kdotx = offx*kx*x1(i) + offy*ky*x2(j) + offz*kz*x3(k);
+                    int oppx = (normalAni3D==IDIR) ? 1 : 0;
+                    int oppy = (normalAni3D==JDIR) ? 1 : 0;
+                    int oppz = (normalAni3D==KDIR) ? 1 : 0;
+                    int idx = oppx*i + oppy*j + oppz*k;
+                    forcingModesIdir(l,k,j,i) = forcingModesNormalAni3D(IDIR,l,idx) * exp(unit_j*kdotx);
+                    forcingModesJdir(l,k,j,i) = forcingModesNormalAni3D(JDIR,l,idx) * exp(unit_j*kdotx);
+                    forcingModesKdir(l,k,j,i) = forcingModesNormalAni3D(KDIR,l,idx) * exp(unit_j*kdotx);
+      });
+      break;
 
 //    case ForcingType::userDef:
 //      break;
   }
   idfx::popRegion();
 }
-
-
 
 // This function compute the required forcing field
 void Forcing::ComputeForcing(real dt) {
@@ -502,6 +684,87 @@ void Forcing::ComputeSolenoidalForcing(real dt) {
   });
 
   idfx::popRegion();
+}
+
+// This function writes the normal basis in a txt file to later plot them with matplotlib
+// Working in mono-domain only
+void Forcing::WriteNormalBasis(std::string folder) {
+//  int order_max = kmax/kx0 + 1;
+//  int order_min = kmin/kx0 - 1;
+//  order_min = std::max(1, order_min);
+//  real xbeg = this->xbeg;
+//  real xend = this->xend;
+//  IdefixArray1D<NormalBoundType> normalAni3DBound = this->normalAni3DBound;
+//  int normalAni3DBasis = this->normalAni3DBasis;
+//  IdefixHostArray3D<real> normalBasisHost("normalBasisHost", order_max, COMPONENTS, data->np_tot[IDIR]);
+//  IdefixArray3D<real> normalBasis("normalBasis", order_max, COMPONENTS, data->np_tot[IDIR]);
+//  idefix_for("write", 0, order_max, 0, data->np_tot[IDIR],
+//              KOKKOS_LAMBDA (int order, int i) {
+//                switch(normalAni3DBasis) {
+//                  case NormalBasis::chebyshev:
+//                    for (int dir = IDIR; dir < COMPONENTS; dir++) {
+//                      int bound = normalAni3DBound(dir);
+//                      switch(bound) {
+//                        case NormalBoundType::bothHomDir:
+//                          normalBasis(order,dir,i) = K_cheby_fst_both_hom_dir(order, K_aff_11(x1(i), xbeg, xend));
+//                        break;
+//                        case NormalBoundType::bothHomNeu:
+//                          normalBasis(order,dir,i) = K_cheby_fst_both_hom_neu(order, K_aff_11(x1(i), xbeg, xend));
+//                        break;
+//                      }
+//                    }
+//                    break;
+//                  case NormalBasis::fourier:
+//                    for (int dir = IDIR; dir < COMPONENTS; dir++) {
+//                      int bound = normalAni3DBound(dir);
+//                      switch(bound) {
+//                        case NormalBoundType::bothHomDir:
+//                          normalBasis(order,dir,i) = K_sin(order, K_aff_02pi(x1(i), xbeg, xend));
+//                        break;
+//                        case NormalBoundType::bothHomNeu:
+//                          normalBasis(order,dir,i) = K_cos(order, K_aff_02pi(x1(i), xbeg, xend));
+//                        break;
+//                      }
+//                    }
+//                    break;
+//                  }
+//  });
+  IdefixArray1D<real> x = data->x[normalAni3D];
+  IdefixHostArray3D<real> forcingModesNormalAni3DHost("forcingModesNormalAni3DHost", COMPONENTS, nForcingModes, data->np_tot[normalAni3D]);
+  IdefixHostArray1D<real> xhost("xhost", data->np_tot[normalAni3D]);
+  Kokkos::deep_copy(forcingModesNormalAni3DHost, forcingModesNormalAni3D);
+  Kokkos::deep_copy(xhost, x);
+  if(idfx::prank==0) {
+    int precision = 10;
+    int col_width = precision + 10;
+    std::string filename = folder + "/normalBasis.dat";
+    std::ofstream file;
+    file.open(filename, std::ios::trunc);
+    file << std::setw(col_width) << "x";
+    for (int comp=IDIR; comp<COMPONENTS; comp++) {
+      for (int l=0; l<nForcingModes; l++) {
+        std::string current_name;
+        if (comp == IDIR) current_name = "fI"+std::to_string(l);
+        else if (comp == JDIR) current_name = "fJ"+std::to_string(l);
+        else if (comp == KDIR) current_name = "fK"+std::to_string(l);
+        else IDEFIX_ERROR("Weird error");
+        file << std::setw(col_width) << current_name;
+      }
+    }
+    file << std::endl;
+    file.precision(precision);
+    for (int i=0; i<data->np_tot[normalAni3D]; i++) {
+      file << std::setw(col_width) << xhost(i);
+      for (int comp=IDIR; comp<COMPONENTS; comp++) {
+        for (int l=0; l<nForcingModes; l++) {
+          file << std::scientific << std::setw(col_width) << forcingModesNormalAni3DHost(comp,l,i);
+        }
+      }
+      file << std::endl;
+    }
+    file << std::endl;
+    file.close();
+  }
 }
 
 // Fill the forcing term with zeros
