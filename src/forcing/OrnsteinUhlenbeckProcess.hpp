@@ -48,8 +48,7 @@ public:
     void InitProcesses(std::string, int, int, std::vector<std::vector<std::string>>, int);
     void SetProcesses(IdefixArray2D<real>, IdefixArray2D<real>, IdefixArray2D<real>);
     void UpdateProcessesValues(real);
-//    void AdvanceProcessesValues(std::vector<real>);
-    void AdvanceProcessesValues(real);
+    void AdvanceProcessesValues(real*, int);
 
     std::string ouFilename;
     std::string normalFilename;

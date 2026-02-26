@@ -420,8 +420,7 @@ void Forcing::FinishInitialisation(real time, int nRestartDmp) {
   this->oUprocesses.ResetProcessesValues(); // so that we get the excited modes even if we don't write
   this->oUprocesses.ResetTimestep();
 
-  if (time > 0.) this->oUprocesses.AdvanceProcessesValues(time);
-//  if (time) this->oUprocesses.AdvanceProcessesValues(data.tabDt);
+  if (time > 0.) this->oUprocesses.AdvanceProcessesValues(this->data->ptrTabDt, this->data->nmaxTimestep);
 }
 
 void Forcing::ShowConfig() {

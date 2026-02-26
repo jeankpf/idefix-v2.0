@@ -39,6 +39,7 @@ TimeIntegrator::TimeIntegrator(Input & input, DataBlock & data) {
     cfl=input.Get<real>("TimeIntegrator","CFL",0);
     cflMaxVar = input.GetOrSet<real>("TimeIntegrator","CFL_max_var",0, 1.1);
     data.dt = input.GetOrSet<real>("TimeIntegrator","first_dt",0, 1.0e-10);
+    if (!input.restartRequested) data.ptrTabDt[0] = data.dt; // We initialise tabDt with the first value
   }
 
   this->cyclePeriod = input.GetOrSet<int>("Output","log",0, 100);
@@ -411,8 +412,8 @@ void TimeIntegrator::Cycle(DataBlock &data) {
     data.dt = fixedDt;
   }
 
-
   ncycles++;
+  data.ptrTabDt[data.ncyclesRestart + ncycles] = data.dt;
 
   idfx::popRegion();
 }

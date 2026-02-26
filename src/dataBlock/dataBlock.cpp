@@ -162,6 +162,10 @@ DataBlock::DataBlock(Grid &grid, Input &input) {
   // Register variables that need to be saved in case of restart dump
   dump->RegisterVariable(&t, "time");
   dump->RegisterVariable(&dt, "dt");
+  nmaxTimestep = 5000;
+  ncyclesRestart = 0;
+  ptrTabDt = (real *) calloc(nmaxTimestep, sizeof(real));
+  dump->RegisterVariable(ptrTabDt, "tabDt", nmaxTimestep);
 
   idfx::popRegion();
 }

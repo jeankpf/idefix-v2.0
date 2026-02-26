@@ -92,49 +92,34 @@ void OrnsteinUhlenbeckProcesses::UpdateProcessesValues(real dt) {
   });
 }
 
-//void OrnsteinUhlenbeckProcesses::AdvanceProcessesValues(std::vector<real> tabDt) {
-//std::cout << tabDt.empty() << std::endl;
-//  while (not tabDt.empty()) {
-//    real dt = tabDt[0];
-//    tabDt.erase(tabDt.begin());
-//    UpdateProcessesValues(dt);
-////std::cout << dt << std::endl;
-//  }
-//}
+void OrnsteinUhlenbeckProcesses::AdvanceProcessesValues(real *ptrTadbDt, int nmaxTimestep) {
 
-void OrnsteinUhlenbeckProcesses::AdvanceProcessesValues(real time) {
-
-  std::ifstream filereadonly(timestepFilenameRestart);
-  std::string line;
-
-  if (filereadonly.is_open()) {
-    while (getline(filereadonly, line)) {
-      std::string::size_type sz;
-      real dt = std::stof(line, &sz);
-      real t = std::stof(line.substr(sz));
-      UpdateProcessesValues(dt);
-      WriteTimestep(t, dt);
-      WriteProcessesValues(t);
-      WriteNormalValues(t);
-      if (t >= time) break;
-    }
-    filereadonly.close();
-
-    if(idfx::prank==0) {
-      std::ofstream file(timestepFilename, std::ios::app);
-      int col_width = precision + 10;
-      file << "AdvanceProcessesValues stopped here" << std::endl;
-      file.close();
-      std::ofstream file1(ouFilename, std::ios::app);
-      file1 << "AdvanceProcessesValues stopped here" << std::endl;
-      file1.close();
-      std::ofstream file2(normalFilename, std::ios::app);
-      file2 << "AdvanceProcessesValues stopped here" << std::endl;
-      file2.close();
-    }
+  int i = 0;
+  real *t;
+  t = new real;
+  *t = ZERO_F;
+  while (ptrTadbDt[i+1] > 0 and i < nmaxTimestep) {
+    real dt = ptrTadbDt[i];
+    *t += dt;
+    UpdateProcessesValues(dt);
+    WriteTimestep(*t, dt);
+    WriteProcessesValues(*t);
+    WriteNormalValues(*t);
+    i++;
   }
-  else {
-      IDEFIX_WARNING("UNABLE TO READ THE TIMESTEP FILE TO ADVANCE OU PROCESSES");
+  if (i >= nmaxTimestep) IDEFIX_WARNING("Problem with AdvanceProcessValues");
+
+  if(idfx::prank==0) {
+    std::ofstream file(timestepFilename, std::ios::app);
+    int col_width = precision + 10;
+    file << "AdvanceProcessesValues stopped here" << std::endl;
+    file.close();
+    std::ofstream file1(ouFilename, std::ios::app);
+    file1 << "AdvanceProcessesValues stopped here" << std::endl;
+    file1.close();
+    std::ofstream file2(normalFilename, std::ios::app);
+    file2 << "AdvanceProcessesValues stopped here" << std::endl;
+    file2.close();
   }
 }
 

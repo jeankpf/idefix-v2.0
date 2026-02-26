@@ -327,6 +327,11 @@ bool Output::RestartFromDump(DataBlock &data, int readNumber) {
 
   bool result = data.dump->Read(*this, readNumber);
   if(result) data.DeriveVectorPotential();
+  if(result and data.haveForcing) {
+    while (data.ptrTabDt[data.ncyclesRestart+1] > 0 and data.ncyclesRestart < data.nmaxTimestep) {
+      data.ncyclesRestart++;
+    }
+  }
 
   idfx::popRegion();
   return(result);

@@ -104,6 +104,9 @@ class DataBlock {
   std::array<int,3> gbeg;      ///< First global index of the active domain of this datablock
   std::array<int,3> gend;      ///< Last global index of the active domain of this datablock
 
+  int nmaxTimestep;       ///< Maximum number timestep
+  int ncyclesRestart;       ///< Current ncyles from restart
+  real *ptrTabDt;       ///< Current timestep pointer
   real dt;                     ///< Current timestep
   real t;                      ///< Current time
 
