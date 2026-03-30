@@ -1,9 +1,0 @@
-diff a/src/forcing/forcing.hpp b/src/forcing/forcing.hpp	(rejected hunks)
-@@ -65,7 +67,6 @@ class Forcing {
- 
-   int nForcingModes;
-   real targetVel;
--  real cs;
-   real tcorr;
-   real epsilon;
-   IdefixArray2D<real> tcorrs;

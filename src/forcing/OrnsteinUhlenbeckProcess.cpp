@@ -26,7 +26,7 @@ void OrnsteinUhlenbeckProcesses::InitProcesses(std::string folder, int seed, int
   this->normalValuesImag = IdefixArray2D<real> ("normalValuesImag", nSeries, COMPONENTS);
   this->random_pool = Kokkos::Random_XorShift64_Pool<> (/*seed=*/seed);
 
-  if (nRestartDmp > 0) {
+  if (nRestartDmp > -1) {
     this->restarted = true;
     this->ouFilename = folder + "/ou_prank" + std::to_string(idfx::prank) + "_seed" + std::to_string(seed) + "_restart" + std::to_string(nRestartDmp) + ".dat";
     this->normalFilename = folder + "/normal_prank" + std::to_string(idfx::prank) + "_seed" + std::to_string(seed) + "_restart" + std::to_string(nRestartDmp) + ".dat";
